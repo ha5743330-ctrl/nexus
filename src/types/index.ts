@@ -54,7 +54,11 @@ export interface ChatConversation {
 export interface CollaborationRequest {
   id: string;
   investorId: string;
+  investorName: string;
+  investorAvatarUrl: string;
   entrepreneurId: string;
+  entrepreneurName: string;
+  entrepreneurAvatarUrl: string;
   message: string;
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;

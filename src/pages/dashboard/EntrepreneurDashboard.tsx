@@ -1,41 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Bell, Calendar, TrendingUp, AlertCircle, PlusCircle } from 'lucide-react';
+import { Users, Bell, Calendar, FileText, AlertCircle, PlusCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Button } from '../../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { CollaborationRequestCard } from '../../components/collaboration/CollaborationRequestCard';
 import { InvestorCard } from '../../components/investor/InvestorCard';
 import { useAuth } from '../../context/AuthContext';
-import { CollaborationRequest } from '../../types';
-import { getRequestsForEntrepreneur } from '../../data/collaborationRequests';
-import { investors } from '../../data/users';
+import { CollaborationRequest, Investor, Meeting } from '../../types';
+import { listMyConnectionRequests } from '../../services/connectionRequestService';
+import { listUsersByRole } from '../../services/userService';
+import { listMyMeetings } from '../../services/meetingService';
+import { listMyDocuments } from '../../services/documentService';
 
 export const EntrepreneurDashboard: React.FC = () => {
   const { user } = useAuth();
   const [collaborationRequests, setCollaborationRequests] = useState<CollaborationRequest[]>([]);
-  const [recommendedInvestors, setRecommendedInvestors] = useState(investors.slice(0, 3));
-  
+  const [recommendedInvestors, setRecommendedInvestors] = useState<Investor[]>([]);
+  const [upcomingMeetings, setUpcomingMeetings] = useState<Meeting[]>([]);
+  const [sharedDocumentsCount, setSharedDocumentsCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    if (user) {
-      // Load collaboration requests
-      const requests = getRequestsForEntrepreneur(user.id);
-      setCollaborationRequests(requests);
-    }
+    if (!user) return;
+
+    (async () => {
+      setIsLoading(true);
+      try {
+        const [requests, investors, meetings, documents] = await Promise.all([
+          listMyConnectionRequests(),
+          listUsersByRole('investor', { limit: 3 }),
+          listMyMeetings({ status: 'accepted' }),
+          listMyDocuments(),
+        ]);
+
+        setCollaborationRequests(requests);
+        setRecommendedInvestors(investors.users as Investor[]);
+        setUpcomingMeetings(meetings.filter((m) => new Date(m.startTime) > new Date()));
+        setSharedDocumentsCount(documents.filter((d) => d.shared).length);
+      } catch {
+        toast.error('Could not load your dashboard.');
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, [user]);
-  
+
   const handleRequestStatusUpdate = (requestId: string, status: 'accepted' | 'rejected') => {
-    setCollaborationRequests(prevRequests => 
-      prevRequests.map(req => 
-        req.id === requestId ? { ...req, status } : req
-      )
-    );
+    setCollaborationRequests((prev) => prev.map((req) => (req.id === requestId ? { ...req, status } : req)));
   };
-  
+
   if (!user) return null;
-  
-  const pendingRequests = collaborationRequests.filter(req => req.status === 'pending');
-  
+
+  const pendingRequests = collaborationRequests.filter((req) => req.status === 'pending');
+  const acceptedRequests = collaborationRequests.filter((req) => req.status === 'accepted');
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -43,16 +63,12 @@ export const EntrepreneurDashboard: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Welcome, {user.name}</h1>
           <p className="text-gray-600">Here's what's happening with your startup today</p>
         </div>
-        
+
         <Link to="/investors">
-          <Button
-            leftIcon={<PlusCircle size={18} />}
-          >
-            Find Investors
-          </Button>
+          <Button leftIcon={<PlusCircle size={18} />}>Find Investors</Button>
         </Link>
       </div>
-      
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-primary-50 border border-primary-100">
@@ -68,7 +84,7 @@ export const EntrepreneurDashboard: React.FC = () => {
             </div>
           </CardBody>
         </Card>
-        
+
         <Card className="bg-secondary-50 border border-secondary-100">
           <CardBody>
             <div className="flex items-center">
@@ -77,14 +93,12 @@ export const EntrepreneurDashboard: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-secondary-700">Total Connections</p>
-                <h3 className="text-xl font-semibold text-secondary-900">
-                  {collaborationRequests.filter(req => req.status === 'accepted').length}
-                </h3>
+                <h3 className="text-xl font-semibold text-secondary-900">{acceptedRequests.length}</h3>
               </div>
             </div>
           </CardBody>
         </Card>
-        
+
         <Card className="bg-accent-50 border border-accent-100">
           <CardBody>
             <div className="flex items-center">
@@ -93,27 +107,27 @@ export const EntrepreneurDashboard: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-accent-700">Upcoming Meetings</p>
-                <h3 className="text-xl font-semibold text-accent-900">2</h3>
+                <h3 className="text-xl font-semibold text-accent-900">{upcomingMeetings.length}</h3>
               </div>
             </div>
           </CardBody>
         </Card>
-        
+
         <Card className="bg-success-50 border border-success-100">
           <CardBody>
             <div className="flex items-center">
               <div className="p-3 bg-green-100 rounded-full mr-4">
-                <TrendingUp size={20} className="text-success-700" />
+                <FileText size={20} className="text-success-700" />
               </div>
               <div>
-                <p className="text-sm font-medium text-success-700">Profile Views</p>
-                <h3 className="text-xl font-semibold text-success-900">24</h3>
+                <p className="text-sm font-medium text-success-700">Shared Documents</p>
+                <h3 className="text-xl font-semibold text-success-900">{sharedDocumentsCount}</h3>
               </div>
             </div>
           </CardBody>
         </Card>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Collaboration requests */}
         <div className="lg:col-span-2 space-y-4">
@@ -122,14 +136,19 @@ export const EntrepreneurDashboard: React.FC = () => {
               <h2 className="text-lg font-medium text-gray-900">Collaboration Requests</h2>
               <Badge variant="primary">{pendingRequests.length} pending</Badge>
             </CardHeader>
-            
+
             <CardBody>
-              {collaborationRequests.length > 0 ? (
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-6 w-6 border-4 border-primary-500 border-t-transparent rounded-full" />
+                </div>
+              ) : collaborationRequests.length > 0 ? (
                 <div className="space-y-4">
-                  {collaborationRequests.map(request => (
+                  {collaborationRequests.map((request) => (
                     <CollaborationRequestCard
                       key={request.id}
                       request={request}
+                      viewAs="entrepreneur"
                       onStatusUpdate={handleRequestStatusUpdate}
                     />
                   ))}
@@ -140,13 +159,15 @@ export const EntrepreneurDashboard: React.FC = () => {
                     <AlertCircle size={24} className="text-gray-500" />
                   </div>
                   <p className="text-gray-600">No collaboration requests yet</p>
-                  <p className="text-sm text-gray-500 mt-1">When investors are interested in your startup, their requests will appear here</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    When investors are interested in your startup, their requests will appear here
+                  </p>
                 </div>
               )}
             </CardBody>
           </Card>
         </div>
-        
+
         {/* Recommended investors */}
         <div className="space-y-4">
           <Card>
@@ -156,15 +177,15 @@ export const EntrepreneurDashboard: React.FC = () => {
                 View all
               </Link>
             </CardHeader>
-            
+
             <CardBody className="space-y-4">
-              {recommendedInvestors.map(investor => (
-                <InvestorCard
-                  key={investor.id}
-                  investor={investor}
-                  showActions={false}
-                />
-              ))}
+              {recommendedInvestors.length > 0 ? (
+                recommendedInvestors.map((investor) => (
+                  <InvestorCard key={investor.id} investor={investor} showActions={false} />
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">No investors yet.</p>
+              )}
             </CardBody>
           </Card>
         </div>

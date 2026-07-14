@@ -8,6 +8,7 @@ import { ChatMessage } from '../../components/chat/ChatMessage';
 import { ChatUserList } from '../../components/chat/ChatUserList';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+import { useCall } from '../../context/CallContext';
 import { Message, ChatConversation, User } from '../../types';
 import { getUserById } from '../../services/userService';
 import { listConversations, getConversationHistory } from '../../services/messageService';
@@ -17,6 +18,7 @@ export const ChatPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const { user: currentUser } = useAuth();
   const socket = useSocket();
+  const { startCall } = useCall();
 
   const [chatPartner, setChatPartner] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -195,8 +197,12 @@ export const ChatPage: React.FC = () => {
                   size="sm"
                   className="rounded-full p-2"
                   aria-label="Video call"
-                  disabled
-                  title="Video calling is coming with the Video Call module"
+                  onClick={() =>
+                    startCall(
+                      { id: chatPartner.id, name: chatPartner.name, avatarUrl: chatPartner.avatarUrl },
+                      [currentUser!.id, chatPartner.id].sort().join('-')
+                    )
+                  }
                 >
                   <Video size={18} />
                 </Button>

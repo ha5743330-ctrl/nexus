@@ -8,6 +8,7 @@ import { Badge, BadgeVariant } from '../../components/ui/Badge';
 import { Avatar } from '../../components/ui/Avatar';
 import { ScheduleMeetingModal } from '../../components/meetings/ScheduleMeetingModal';
 import { useAuth } from '../../context/AuthContext';
+import { useCall } from '../../context/CallContext';
 import { Meeting, MeetingStatus } from '../../types';
 import { listMyMeetings, updateMeetingStatus, deleteMeeting } from '../../services/meetingService';
 
@@ -23,6 +24,7 @@ const statusVariant: Record<MeetingStatus, BadgeVariant> = {
 
 export const MeetingsPage: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const { startCall } = useCall();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('upcoming');
@@ -246,13 +248,18 @@ export const MeetingsPage: React.FC = () => {
                         </>
                       )}
 
-                      {meeting.status === 'accepted' && (
+                      {meeting.status === 'accepted' && meeting.roomId && (
                         <Button
                           size="sm"
                           variant="primary"
                           leftIcon={<Video size={14} />}
-                          disabled
-                          title="Video calling is coming with the Video Call module"
+                          onClick={() =>
+                            startCall(
+                              { id: otherUser.id, name: otherUser.name, avatarUrl: otherUser.avatarUrl },
+                              meeting.roomId!,
+                              meeting.title
+                            )
+                          }
                         >
                           Join
                         </Button>
